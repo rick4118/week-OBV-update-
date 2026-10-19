@@ -7,7 +7,7 @@ from datetime import datetime
 # 設定網頁標題與排版
 st.set_page_config(
     page_title="周K OBV 綜合篩選器 (受保護)",
-    page_icon="f4c8",
+    page_icon="📈",
     layout="centered"
 )
 
@@ -22,7 +22,7 @@ def check_password():
             st.session_state["password_correct"] = False
 
     if "password_correct" not in st.session_state:
-        st.title("f512 系統安全驗證")
+        st.title("🔒 系統安全驗證")
         st.text_input(
             "請輸入密碼以存取周K OBV 篩選器：",
             type="password",
@@ -31,7 +31,7 @@ def check_password():
         )
         return False
     elif not st.session_state["password_correct"]:
-        st.title("f512 系統安全驗證")
+        st.title("🔒 系統安全驗證")
         st.text_input(
             "請輸入密碼以存取周K OBV 篩選器：",
             type="password",
@@ -137,7 +137,7 @@ if check_password():
                         continue
 
                     # 條件 3: 突破當週的成交量不可高於前一週的指定倍數
-                    volume_ratio = latest["Volume"] / prev["Volume"] if prev["Volume"] != 0 else 999
+                    volume_ratio = latest["Volume"] / prev["Volume"] if prev["Volume" ] != 0 else 999
                     if volume_ratio > volume_ratio_limit:
                         continue
 
@@ -177,7 +177,7 @@ if check_password():
         return pd.DataFrame(all_matches)
 
     # --- App 主介面 ---
-    st.title("f4c8 周K OBV 綜合決策篩選器")
+    st.title("📈 周K OBV 綜合決策篩選器")
     st.write("此為綜合多重指標篩選系統，需完全符合 OBV 突破、均線多頭、MACD 初升段、突破量能限制及收盤價限制。")
 
     # 參數設定區塊
@@ -191,7 +191,7 @@ if check_password():
         volume_ratio_limit = st.number_input("成交量限制倍數 (預設 10.0 倍)", min_value=0.5, max_value=50.0, value=10.0, step=0.5, format="%.1f")
 
     # 時間區間選擇
-    st.subheader("f4c5 選擇搜尋時間區間")
+    st.subheader("📅 選擇搜尋時間區間")
     col_date1, col_date2 = st.columns(2)
     with col_date1:
         start_date = st.date_input("開始日期:", datetime.now() - pd.Timedelta(days=90))
@@ -230,7 +230,7 @@ if check_password():
                         volume_ratio_limit=volume_ratio_limit
                     )
 
-                    st.subheader("f389 嚴格篩選結果")
+                    st.subheader("🎉 嚴格篩選結果")
 
                     if not df_res.empty:
                         df_res = df_res.sort_values(by="Date")
@@ -239,7 +239,7 @@ if check_password():
                         st.success(f"✨ 共有 {len(df_res)} 筆交易週紀錄符合條件：")
 
                         for date_str in unique_dates:
-                            st.markdown(f"### f4c5 週 K 對應日期: `{date_str}`")
+                            st.markdown(f"### 📅 週 K 對應日期: `{date_str}`")
                             matching_sub = df_res[df_res["Date"] == date_str]
 
                             # 格式化輸出，加上獲利%與第幾週
