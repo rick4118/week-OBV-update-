@@ -52,7 +52,7 @@ if check_password():
 
         # 1. OBV 計算
         close_diff = df["Close"].diff()
-        volume_direction = np.where(close_diff > 0, df["Volume"],
+        volume_direction = np.where(close_diff > 0, df["Volume"], 
                                     np.where(close_diff < 0, -df["Volume"], 0))
         volume_direction[0] = 0
         df["OBV"] = np.cumsum(volume_direction)
@@ -68,21 +68,19 @@ if check_password():
         ema26 = df["Close"].ewm(span=26, adjust=False).mean()
         df["DIF"] = ema12 - ema26
         df["DEA"] = df["DIF"].ewm(span=9, adjust=False).mean()
-        df["MACD_Hist"] = df["DIF"] - df["DEA"] # 紅綠柱
+        df["MACD_Hist"] = df["DIF" ] - df["DEA"] # 紅綠柱
 
         return df
 
-    def scan_weekly_obv_stocks_v2(ticker_list, start_date, end_date, break_window=13, obv_ma_window=20):
-        # 用於記錄所有符合條件的歷史時間與個股結果
-        # 格式: { 'Date': 'YYYY-MM-DD', 'Ticker': '2330.TW' }
+    def scan_weekly_obv_stocks_v2(ticker_list, start_date, end_date, break_window=13, obv_ma_window=20, obv_ratio_limit=1.0):
         all_matches = []
 
         start_dt = pd.Timestamp(start_date)
         end_dt = pd.Timestamp(end_date)
 
-        # 為了計算過去指標，提前下載更多歷史數據 (30周 + MA20 需要大約 1.5 年)
+        # 提前下載數據，同時也要確保突破日後續至少有 24 週（約 170 天）可供回測計算
         download_start = (start_dt - pd.Timedelta(days=365*1.5)).strftime("%Y-%m-%d")
-        download_end = (end_dt + pd.Timedelta(days=7)).strftime("%Y-%m-%d")
+        download_end = (end_dt + pd.Timedelta(days=7 + 24*7)).strftime("%Y-%m-%d")
 
         for ticker in ticker_list:
             try:
@@ -125,8 +123,7 @@ if check_password():
                     if not ma_up:
                         continue
 
-                    # 條件 2: MACD 紅柱漸增且小於 5 根 (不含第 5 根，由綠轉紅第 1 根為起點)
-                    # 找出當前連續紅柱(即 > 0)的長度
+                    # 條件 2: MACD 紅柱漸增且小於 5 根
                     hist_series = df_sub["MACD_Hist"]
                     red_count = 0
                     for val in reversed(hist_series.values):
@@ -139,9 +136,9 @@ if check_password():
                     if not macd_ok:
                         continue
 
-                    # 條件 3: 剛突破的 OBV 量能數值不能比前一週高出 1.1 倍
+                    # 條件 3: 剛突破的 OBV 量能數值不能比前一週高出指定倍數
                     obv_ratio = latest["OBV"] / prev["OBV"] if prev["OBV"] != 0 else 999
-                    if obv_ratio > 1.1:
+                    if obv_ratio > obv_ratio_limit:
                         continue
 
                     # 條件 4: 當周收盤價不可高於往前推算 30 周內最高 OBV 那周的收盤價
@@ -152,10 +149,27 @@ if check_password():
                     if latest["Close"] > max_obv_week_close:
                         continue
 
-                    # 通過所有嚴格篩選！
+                    # 通過所有篩選！計算往後推 24 週的獲利狀況
+                    buy_price = latest["Close"]
+                    future_df = df.iloc[idx_loc+1 : idx_loc+25] # 往後推 24 週
+                    
+                    # 必須確保未來剛好有 24 週的數據，不足一律顯示 NA
+                    if len(future_df) == 24:
+                        max_future_close = future_df["Close"].max()
+                        max_idx = future_df["Close"].idxmax()
+                        max_loc = future_df.index.get_loc(max_idx) + 1 # 取得第幾週
+                        profit_pct = ((max_future_close - buy_price) / buy_price) * 100
+                        profit_str = f"{profit_pct:+.2f}%"
+                        week_str = f"第 {max_loc} 週"
+                    else:
+                        profit_str = "NA"
+                        week_str = "NA"
+
                     all_matches.append({
                         "Date": current_date.strftime("%Y-%m-%d"),
-                        "Ticker": ticker
+                        "Ticker": ticker,
+                        "Profit": profit_str,
+                        "Week_Num": week_str
                     })
             except Exception as e:
                 pass
@@ -168,11 +182,13 @@ if check_password():
 
     # 參數設定區塊
     st.subheader("⚙️ 參數設定")
-    col_param1, col_param2 = st.columns(2)
+    col_param1, col_param2, col_param3 = st.columns(3)
     with col_param1:
         break_window = st.number_input("OBV 新高計算週數 (預設 13 週)", min_value=5, max_value=52, value=13, step=1)
     with col_param2:
         ma_window = st.number_input("OBV 均線週數 (預設 20 週)", min_value=5, max_value=100, value=20, step=1)
+    with col_param3:
+        obv_ratio_limit = st.number_input("OBV 限制倍數 (預設 1.0 倍)", min_value=0.5, max_value=5.0, value=1.0, step=0.1, format="%.1f")
 
     # 時間區間選擇
     st.subheader("📅 選擇搜尋時間區間")
@@ -210,24 +226,29 @@ if check_password():
                         start_date.strftime('%Y-%m-%d'),
                         end_date.strftime('%Y-%m-%d'),
                         break_window=break_window,
-                        obv_ma_window=ma_window
+                        obv_ma_window=ma_window,
+                        obv_ratio_limit=obv_ratio_limit
                     )
 
                     st.subheader("🎉 嚴格篩選結果")
 
                     if not df_res.empty:
-                        # 按日期由舊到新排序與呈現
                         df_res = df_res.sort_values(by="Date")
                         unique_dates = df_res["Date"].unique()
 
                         st.success(f"✨ 共有 {len(df_res)} 筆交易週紀錄符合條件：")
-                        
+
                         for date_str in unique_dates:
                             st.markdown(f"### 📅 週 K 對應日期: `{date_str}`")
-                            matching_tickers = df_res[df_res["Date"] == date_str]["Ticker"].tolist()
-                            # 使用 st.code 呈現方便用戶複製
-                            st.code(" , ".join(matching_tickers), language="text")
+                            matching_sub = df_res[df_res["Date"] == date_str]
                             
-                        st.info("💡 提示：點擊右上方『📋』按鈕可以快速複製該日期底下所有符合條件的股票代碼。")
+                            # 格式化輸出，加上獲利%與第幾週
+                            result_strings = []
+                            for _, row in matching_sub.iterrows():
+                                result_strings.append(f"{row['Ticker']} (獲利: {row['Profit']}, {row['Week_Num']})")
+                                    
+                            st.code(" | ".join(result_strings), language="text")
+
+                        st.info("💡 提示：點擊右上方『📋』按鈕可以快速複製該日期底下所有符合條件與獲利成效的股票資訊。")
                     else:
                         st.error("❌ 在此指定時間區間內，無任何個股完全符合所有篩選條件。")
