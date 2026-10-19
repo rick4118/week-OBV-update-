@@ -1,2 +1,2 @@
 # week-OBV-update-
-週KOBV進階篩選器
+週K OBV進階篩選器
