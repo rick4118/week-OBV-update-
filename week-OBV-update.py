@@ -49,82 +49,82 @@ if check_password():
     # --- OBV 與技術指標計算邏輯 ---
     def calculate_indicators(df, obv_ma_window=20):
         df = df.sort_index()
-        
+
         # 1. OBV 計算
         close_diff = df["Close"].diff()
-        volume_direction = np.where(close_diff > 0, df["Volume"], 
+        volume_direction = np.where(close_diff > 0, df["Volume"],
                                     np.where(close_diff < 0, -df["Volume"], 0))
         volume_direction[0] = 0
         df["OBV"] = np.cumsum(volume_direction)
         df["OBV_MA"] = df["OBV"].rolling(window=obv_ma_window).mean()
-        
+
         # 2. 週 K 線 5T, 10T, 20T 均線
         df["MA5"] = df["Close"].rolling(window=5).mean()
         df["MA10"] = df["Close"].rolling(window=10).mean()
         df["MA20"] = df["Close"].rolling(window=20).mean()
-        
+
         # 3. MACD 計算 (12, 26, 9)
         ema12 = df["Close"].ewm(span=12, adjust=False).mean()
         ema26 = df["Close"].ewm(span=26, adjust=False).mean()
         df["DIF"] = ema12 - ema26
         df["DEA"] = df["DIF"].ewm(span=9, adjust=False).mean()
         df["MACD_Hist"] = df["DIF"] - df["DEA"] # 紅綠柱
-        
+
         return df
 
     def scan_weekly_obv_stocks_v2(ticker_list, start_date, end_date, break_window=13, obv_ma_window=20):
         # 用於記錄所有符合條件的歷史時間與個股結果
         # 格式: { 'Date': 'YYYY-MM-DD', 'Ticker': '2330.TW' }
         all_matches = []
-        
+
         start_dt = pd.Timestamp(start_date)
         end_dt = pd.Timestamp(end_date)
-        
+
         # 為了計算過去指標，提前下載更多歷史數據 (30周 + MA20 需要大約 1.5 年)
         download_start = (start_dt - pd.Timedelta(days=365*1.5)).strftime("%Y-%m-%d")
         download_end = (end_dt + pd.Timedelta(days=7)).strftime("%Y-%m-%d")
-        
+
         for ticker in ticker_list:
             try:
                 df = yf.download(ticker, start=download_start, end=download_end, interval="1wk", auto_adjust=False, progress=False)
                 if isinstance(df.columns, pd.MultiIndex):
                     df.columns = df.columns.get_level_values(0)
                 df = df.dropna(subset=["Close"])
-                
-                if len(df) < 50: 
+
+                if len(df) < 50:
                     continue
-                
+
                 df = calculate_indicators(df, obv_ma_window)
-                
+
                 # 尋找落在此時間區間內的週K棒索引
                 target_weeks = df[(df.index >= start_dt) & (df.index <= end_dt)]
-                
+
                 for current_date in target_weeks.index:
                     idx_loc = df.index.get_loc(current_date)
-                    if idx_loc < 31: 
+                    if idx_loc < 31:
                         continue # 需要至少30週歷史資料
-                    
+
                     # 取得當前與歷史切片
                     df_sub = df.iloc[:idx_loc+1]
                     latest = df_sub.iloc[-1]
                     prev = df_sub.iloc[-2]
-                    
+
                     # 條件 A: 13週剛突破 OBV 新高
                     last_n_weeks = df_sub["OBV"].iloc[-break_window:]
                     is_latest_nw_high = (latest["OBV"] == last_n_weeks.max())
-                    
+
                     prev_n_weeks = df_sub["OBV"].iloc[-(break_window+1):-1]
                     is_prev_nw_high = (prev["OBV"] == prev_n_weeks.max()) if len(prev_n_weeks) == break_window else False
                     is_just_broke_nw = is_latest_nw_high and not is_prev_nw_high
-                    
+
                     if not is_just_broke_nw:
                         continue
-                        
+
                     # 條件 1: 周K線 5T, 10T, 20T 趨勢皆向上 (當周大於前周)
                     ma_up = (latest["MA5"] > prev["MA5"]) and (latest["MA10"] > prev["MA10"]) and (latest["MA20"] > prev["MA20"])
                     if not ma_up:
                         continue
-                    
+
                     # 條件 2: MACD 紅柱漸增且小於 5 根 (不含第 5 根，由綠轉紅第 1 根為起點)
                     # 找出當前連續紅柱(即 > 0)的長度
                     hist_series = df_sub["MACD_Hist"]
@@ -134,25 +134,24 @@ if check_password():
                             red_count += 1
                         else:
                             break
-                    
+
                     macd_ok = (red_count >= 1) and (red_count < 5) and (latest["MACD_Hist"] > prev["MACD_Hist"])
                     if not macd_ok:
                         continue
-                    
+
                     # 條件 3: 剛突破的 OBV 量能數值不能比前一週高出 1.1 倍
-                    # 若前一週 OBV 為負數，則以絕對值乘數或僅限制正向增幅處理。這裡標準化以 abs 避免符號異常，或單純限制比值：
                     obv_ratio = latest["OBV"] / prev["OBV"] if prev["OBV"] != 0 else 999
                     if obv_ratio > 1.1:
                         continue
-                    
+
                     # 條件 4: 當周收盤價不可高於往前推算 30 周內最高 OBV 那周的收盤價
                     last_30_weeks = df_sub.iloc[-30:]
                     max_obv_idx = last_30_weeks["OBV"].idxmax()
                     max_obv_week_close = df_sub.loc[max_obv_idx, "Close"]
-                    
+
                     if latest["Close"] > max_obv_week_close:
                         continue
-                    
+
                     # 通過所有嚴格篩選！
                     all_matches.append({
                         "Date": current_date.strftime("%Y-%m-%d"),
@@ -160,7 +159,7 @@ if check_password():
                     })
             except Exception as e:
                 pass
-                
+
         return pd.DataFrame(all_matches)
 
     # --- App 主介面 ---
@@ -204,7 +203,7 @@ if check_password():
 
                 if not cleaned_tickers:
                     st.warning("⚠️ 請輸入至少一個股票代號！")
-                else: 
+                else:
                     formatted_tickers = [f"{t}.TW" if "." not in t else t for t in cleaned_tickers]
                     df_res = scan_weekly_obv_stocks_v2(
                         formatted_tickers,
@@ -215,10 +214,20 @@ if check_password():
                     )
 
                     st.subheader("🎉 嚴格篩選結果")
-                    
+
                     if not df_res.empty:
-                        # 按日期分組顯示結果
+                        # 按日期由舊到新排序與呈現
                         df_res = df_res.sort_values(by="Date")
                         unique_dates = df_res["Date"].unique()
+
+                        st.success(f"✨ 共有 {len(df_res)} 筆交易週紀錄符合條件：")
                         
-                        st.success(f
+                        for date_str in unique_dates:
+                            st.markdown(f"### 📅 週 K 對應日期: `{date_str}`")
+                            matching_tickers = df_res[df_res["Date"] == date_str]["Ticker"].tolist()
+                            # 使用 st.code 呈現方便用戶複製
+                            st.code(" , ".join(matching_tickers), language="text")
+                            
+                        st.info("💡 提示：點擊右上方『📋』按鈕可以快速複製該日期底下所有符合條件的股票代碼。")
+                    else:
+                        st.error("❌ 在此指定時間區間內，無任何個股完全符合所有篩選條件。")
