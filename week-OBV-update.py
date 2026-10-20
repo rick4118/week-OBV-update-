@@ -7,7 +7,7 @@ from datetime import datetime
 # 設定網頁標題與排版
 st.set_page_config(
     page_title="周K OBV 綜合篩選器 (受保護)",
-    page_icon="📈",
+    page_icon="ᐅ",
     layout="centered"
 )
 
@@ -52,7 +52,7 @@ if check_password():
 
         # 1. OBV 計算
         close_diff = df["Close"].diff()
-        volume_direction = np.where(close_diff > 0, df["Volume"],
+        volume_direction = np.where(close_diff > 0, df["Volume"], 
                                     np.where(close_diff < 0, -df["Volume"], 0))
         volume_direction[0] = 0
         df["OBV"] = np.cumsum(volume_direction)
@@ -71,8 +71,10 @@ if check_password():
         df["MACD_Hist"] = df["DIF"] - df["DEA"] # 紅綠柱
 
         # 4. 為了條件 3 計算前 13 週的平均成交量
-        # 這裡包含當週，故篩選時要取前一週算起的前 13 週均量（避開突破當週）
         df["Vol_MA13"] = df["Volume"].rolling(window=13).mean()
+
+        # 為了計算 OBV 比值，計算前 13 週的平均 OBV
+        df["OBV_MA13"] = df["OBV"].rolling(window=13).mean()
 
         # 5. KD 指標計算 (9, 3, 3)
         low_min = df["Low"].rolling(window=9).min()
@@ -105,7 +107,7 @@ if check_password():
         start_dt = pd.Timestamp(start_date)
         end_dt = pd.Timestamp(end_date)
 
-        # 確保有足夠的歷史資料計算 13週均量、30週OBV高點以及24週回測
+        # 確保有足夠的歷史資料
         download_start = (start_dt - pd.Timedelta(days=365*1.5)).strftime("%Y-%m-%d")
         download_end = (end_dt + pd.Timedelta(days=7 + 24*7)).strftime("%Y-%m-%d")
 
@@ -146,18 +148,18 @@ if check_password():
                         continue
 
                     # 條件 1: 周K線 5T, 10T, 20T 趨勢皆向上 (當周大於前周)
-                    ma_up = (latest["MA5"] > prev["MA5"]) and (latest["MA10" ] > prev["MA10"]) and (latest["MA20"] > prev["MA20"])
+                    ma_up = (latest["MA5"] > prev["MA5"]) and (latest["MA10"] > prev["MA10"]) and (latest["MA20"] > prev["MA20"])
                     if not ma_up:
                         continue
 
-                    # 條件 2: MACD 篩選 (綠轉紅小於5週，或紅柱由短轉長小於5週)
+                    # 條件 2: MACD 篩選
                     hist_series = df_sub["MACD_Hist"].values
                     latest_hist = hist_series[-1]
                     prev_hist = hist_series[-2]
 
                     macd_ok = False
                     if latest_hist > 0:
-                        # A. 綠轉紅的情況 (計算紅柱連續週數)
+                        # A. 綠轉紅的情況
                         red_count = 0
                         for val in reversed(hist_series):
                             if val > 0:
@@ -168,42 +170,41 @@ if check_password():
                         if (red_count >= 1) and (red_count < 5) and (latest_hist > prev_hist):
                             macd_ok = True
 
-                        # B. 紅柱由短轉長的情況 (紅柱盤整後縮短又轉長，持續週數小於 5 週)
+                        # B. 紅柱由短轉長的情況
                         if not macd_ok and latest_hist > prev_hist:
-                            # 往前尋找紅柱區間內的轉折低點 (Local Minimum)
                             turn_count = 0
                             found_local_min = False
                             for i in range(len(hist_series) - 1, 0, -1):
-                                # 如果碰到綠柱，則停止
                                 if hist_series[i] <= 0:
                                     break
-                                # 如果前一週大於當前週，代表找到了轉折低點
                                 if hist_series[i-1] >= hist_series[i]:
                                     found_local_min = True
                                     break
                                 turn_count += 1
 
-                            # 由短轉長（低點後再轉長）的持續週數（即轉折至今的增長週數）需小於 5 週
                             if found_local_min and (turn_count >= 1) and (turn_count < 5):
                                 macd_ok = True
 
                     if not macd_ok:
                         continue
 
-                    # 條件 3: 突破當週的成交量不可高於「前 13 週平均成交量」的指定倍數
-                    # 取前一週 (idx_loc-1) 計算出的 13週平均成交量
+                    # 條件 3: 突破當週的成交量限制
                     prev_ma13_vol = df_sub["Vol_MA13"].iloc[-2]
                     volume_ratio = latest["Volume"] / prev_ma13_vol if prev_ma13_vol > 0 else 999
                     if volume_ratio > volume_ratio_limit:
                         continue
 
-                    # 條件 4: 當周收盤價不可高於往前推算 30 周內最高 OBV 那周的收盤價
+                    # 條件 4: 當周收盤價限制
                     last_30_weeks = df_sub.iloc[-30:]
                     max_obv_idx = last_30_weeks["OBV"].idxmax()
                     max_obv_week_close = df_sub.loc[max_obv_idx, "Close"]
 
                     if latest["Close"] > max_obv_week_close:
                         continue
+
+                    # 計算突破當周OBV與前13周OBV平均值(不含當周)的比值
+                    prev_ma13_obv = df_sub["OBV_MA13"].iloc[-2]
+                    obv_ratio = latest["OBV"] / prev_ma13_obv if prev_ma13_obv != 0 else 0.0
 
                     # 通過所有篩選！計算往後推 24 週的獲利狀況
                     buy_price = latest["Close"]
@@ -213,7 +214,7 @@ if check_password():
                     if len(future_df) == 24:
                         max_future_close = future_df["Close"].max()
                         max_idx = future_df["Close"].idxmax()
-                        max_loc = future_df.index.get_loc(max_idx) + 1 # 取得第幾週
+                        max_loc = future_df.index.get_loc(max_idx) + 1
                         profit_pct = ((max_future_close - buy_price) / buy_price) * 100
                         profit_str = f"{profit_pct:+.2f}%"
                         week_str = f"第 {max_loc} 週"
@@ -222,8 +223,8 @@ if check_password():
                         week_str = "NA"
 
                     # 取得當週的 K值與 D值
-                    k_val = f"{latest["K9"]:.2f}" if not pd.isna(latest["K9"]) else "NA"
-                    d_val = f"{latest["D9"]:.2f}" if not pd.isna(latest["D9"]) else "NA"
+                    k_val = f"{latest['K9']:.2f}" if not pd.isna(latest["K9"]) else "NA"
+                    d_val = f"{latest['D9']:.2f}" if not pd.isna(latest["D9"]) else "NA"
 
                     all_matches.append({
                         "Date": current_date.strftime("%Y-%m-%d"),
@@ -231,7 +232,8 @@ if check_password():
                         "Profit": profit_str,
                         "Week_Num": week_str,
                         "K9": k_val,
-                        "D9": d_val
+                        "D9": d_val,
+                        "OBV_Ratio": f"{obv_ratio:.2f}"
                     })
             except Exception as e:
                 pass
@@ -240,17 +242,17 @@ if check_password():
 
     # --- App 主介面 ---
     st.title("📈 周K OBV 綜合決策篩選器")
-    st.write("此為綜合多重指標篩選系統，需完全符合 OBV 突破、均線多頭、MACD 初升段（或紅柱轉折再轉長）、突破量能限制（對比 13 週均量）及收盤價限制。")
+    st.write("此為綜合多重指標篩選系統，需完全符合 OBV 突破、均線多頭、MACD 初升段及收盤價限制。")
 
     # 參數設定區塊
     st.subheader("⚙️ 參數設定")
     col_param1, col_param2, col_param3 = st.columns(3)
     with col_param1:
-        break_window = st.number_input("OBV 新高計算週數 (預設 13 週)", min_value=5, max_value=52, value=13, step=1)
+        break_window = st.number_input("OBV 新高計算週數", min_value=5, max_value=52, value=13, step=1)
     with col_param2:
-        ma_window = st.number_input("OBV 均線週數 (預設 20 週)", min_value=5, max_value=100, value=20, step=1)
+        ma_window = st.number_input("OBV 均線週數", min_value=5, max_value=100, value=20, step=1)
     with col_param3:
-        volume_ratio_limit = st.number_input("成交量限制倍數 (對比前13週均量)", min_value=0.5, max_value=50.0, value=10.0, step=0.5, format="%.1f")
+        volume_ratio_limit = st.number_input("成交量限制倍數", min_value=0.5, max_value=50.0, value=10.0, step=0.5, format="%.1f")
 
     # 時間區間選擇
     st.subheader("📅 選擇搜尋時間區間")
@@ -275,14 +277,7 @@ if check_password():
         else:
             with st.spinner("⏳ 正在分析歷史數據，請稍候..."):
                 raw_input = tickers_input
-                for char in [
-                    ',',
-                    ';',
-                    '\n',
-                    '\t',
-                    '，',
-                    '；'
-                ]:
+                for char in [',', ';', '\n', '\t', '，', '；']:
                     raw_input = raw_input.replace(char, ' ')
                 cleaned_tickers = [t.strip() for t in raw_input.split(' ') if t.strip()]
 
@@ -309,15 +304,14 @@ if check_password():
 
                         for date_str in unique_dates:
                             st.markdown(f"### 📅 週 K 對應日期: `{date_str}`")
-                            matching_sub = df_res[df_res["Date"] == date_str]
+                            matching_sub = df_res[df_res["Date"].astype(str) == date_str]
 
-                            # 格式化輸出，加上獲利%、第幾週、KD值
                             result_strings = []
                             for _, row in matching_sub.iterrows():
-                                result_strings.append(f"{row['Ticker']} (獲利: {row['Profit']}, {row['Week_Num']}, KD: K={row['K9']} D={row['D9']})")
+                                result_strings.append(f"{row['Ticker']} (OBV比值: {row['OBV_Ratio']}, 獲利: {row['Profit']}, {row['Week_Num']}, KD: K={row['K9']} D={row['D9']})")
 
                             st.code(" | ".join(result_strings), language="text")
 
-                        st.info("💡 提示：點擊右上方『📋』按鈕可以快速複製該日期底下所有符合條件與獲利成效的股票資訊。")
+                        st.info("💡 提示：點擊右上方『📋』按鈕可以快速複製資訊。")
                     else:
                         st.error("❌ 在此指定時間區間內，無任何個股完全符合所有篩選條件。")
