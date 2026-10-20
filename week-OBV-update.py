@@ -13,7 +13,7 @@ st.set_page_config(
 
 # --- 密碼保護功能 ---
 def check_password():
-    """如果密碼正確則回傳 True，否則顯示輲入框並回傳 False"""
+    """如果密碼正確則回傳 True，否則顯示輸入框並回傳 False"""
     def password_entered():
         if st.session_state["password"] == "592888":
             st.session_state["password_correct"] = True
@@ -24,21 +24,21 @@ def check_password():
     if "password_correct" not in st.session_state:
         st.title("🔒 系統安全驗證")
         st.text_input(
-            "請輺入密碼以存取周K OBV 篥選器：",
+            "請輸入密碼以存取周K OBV 篩選器：",
             type="password",
-            on_change=password_entered, 
+            on_change=password_entered,
             key="password"
         )
         return False
     elif not st.session_state["password_correct"]:
         st.title("🔒 系統安全驗證")
         st.text_input(
-            "請輺入密碼以存取周K OBV 篥選器：",
+            "請輸入密碼以存取周K OBV 篩選器：",
             type="password",
             on_change=password_entered,
             key="password"
         )
-        st.error("❌ 密碼錯誤，請重新輺入！")
+        st.error("❌ 密碼錯誤，請重新輸入！")
         return False
     else:
         return True
@@ -214,7 +214,7 @@ if check_password():
                     buy_price = latest["Close"]
                     future_df = df.iloc[idx_loc+1 : idx_loc+25] # 往後推 24 週
 
-                    # 必須確保未來剛好有 24 週的斸據，不足一律顯示 NA
+                    # 必須確保有 24 週的斸據，不足一律顯示 NA
                     if len(future_df) == 24:
                         max_future_close = future_df["Close"].max()
                         max_idx = future_df["Close"].idxmax()
@@ -259,7 +259,7 @@ if check_password():
         volume_ratio_limit = st.number_input("成交量限制倍斸", min_value=0.5, max_value=50.0, value=10.0, step=0.5, format="%.1f")
 
     # OBV 比值篥選區間
-    st.subheader("📈 OBV 比值篥選區間 (突破甶週 OBV / 前13週 OBV 平均值)")
+    st.subheader("📈 OBV 比值篩選區間 (突破甶週 OBV / 前13週 OBV 平均值)")
     col_obv_min, col_obv_max = st.columns(2)
     with col_obv_min:
         obv_ratio_min = st.number_input("OBV 比值最小值", min_value=0.0, max_value=100.0, value=0.0, step=0.1, format="%.1f")
@@ -267,7 +267,7 @@ if check_password():
         obv_ratio_max = st.number_input("OBV 比值最大值", min_value=0.0, max_value=100.0, value=10.0, step=0.1, format="%.1f")
 
     # 時間區間選擇
-    st.subheader("Ὄ5 選擇搜尋時間區間")
+    st.subheader("📅 選擇搜尋時間區間")
     col_date1, col_date2 = st.columns(2)
     with col_date1:
         start_date = st.date_input("開始日期:", datetime.now() - pd.Timedelta(days=90))
@@ -276,25 +276,25 @@ if check_password():
 
     default_tickers = "2330, 1519, 2603, 2605, 1777.TWO"
     tickers_input = st.text_area(
-        "輺入股票代號 (支援空格、逗號、換行分隔):",
+        "輸入股票代號 (支援空格、逗號、換行分隔):",
         value=default_tickers,
         height=120
     )
 
-    run_button = st.button("🎯 開始條件篥選", use_container_width=True)
+    run_button = st.button("🎯 開始條件篩選", use_container_width=True)
 
     if run_button:
         if start_date > end_date:
-            st.error("❌ 誤：開始日期不可晚於結束日期！")
+            st.error("❌ 錯誤：開始日期不可晚於結束日期！")
         else:
-            with st.spinner("⏳ 正在分析歷史斸據，請稍候..."):
+            with st.spinner("⏳ 正在分析歷史數據，請稍候..."):
                 raw_input = tickers_input
                 for char in [',', ';', '\n', '\t', '，', '；']:
                     raw_input = raw_input.replace(char, ' ')
                 cleaned_tickers = [t.strip() for t in raw_input.split(' ') if t.strip()]
 
                 if not cleaned_tickers:
-                    st.warning("⚠️ 請輺入至少一個股票代號！")
+                    st.warning("⚠️ 請輸入至少一個股票代號！")
                 else:
                     formatted_tickers = [f"{t}.TW" if "." not in t else t for t in cleaned_tickers]
                     df_res = scan_weekly_obv_stocks_v2(
@@ -308,7 +308,7 @@ if check_password():
                         obv_ratio_max=obv_ratio_max
                     )
 
-                    st.subheader("🎉 嚴格篥選結果")
+                    st.subheader("🎉 嚴格篩選結果")
 
                     if not df_res.empty:
                         df_res = df_res.sort_values(by="Date")
@@ -326,6 +326,6 @@ if check_password():
 
                             st.code(" | ".join(result_strings), language="text")
 
-                        st.info("💡 提示：點擊右上方『📋』按鈐可以快速複製資訊。")
+                        st.info("💡 提示：點擊右上方『📋』按鈕可以快速複製資訊。")
                     else:
                         st.error("❌ 在此指定時間區間內，無任何個股完全符合所有篥選條件。")
