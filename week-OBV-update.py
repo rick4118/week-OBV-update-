@@ -7,13 +7,13 @@ from datetime import datetime
 # 設定網頁標題與排版
 st.set_page_config(
     page_title="周K OBV 綜合篩選器 (受保護)",
-    page_icon="ᐅ",
+    page_icon="📈",
     layout="centered"
 )
 
 # --- 密碼保護功能 ---
 def check_password():
-    """如果密碼正確則回傳 True，否則顯示輺入框並回傳 False"""
+    """如果密碼正確則回傳 True，否則顯示輲入框並回傳 False"""
     def password_entered():
         if st.session_state["password"] == "592888":
             st.session_state["password_correct"] = True
@@ -123,7 +123,7 @@ if check_password():
 
                 df = calculate_indicators(df, obv_ma_window)
 
-                # 尋找落落在時間區間內的週K梒索引
+                # 尋找落在時間區間內的週K索引
                 target_weeks = df[(df.index >= start_dt) & (df.index <= end_dt)]
 
                 for current_date in target_weeks.index:
@@ -245,8 +245,8 @@ if check_password():
         return pd.DataFrame(all_matches)
 
     # --- App 主介面 ---
-    st.title("ᐅ 周K OBV 綵合決策篥選器")
-    st.write("此為綵合多重指標篥選系統，需完全符合 OBV 突破、均線多頭、MACD 初升段及收盤價限制。")
+    st.title("📈 周K OBV 綵合決策篥選器")
+    st.write("此為綵合多重指標篥選系統，需完全符合 OBV 突破、均線多頭、MACD 初升段只收盤價限制。")
 
     # 參斸設定區塊
     st.subheader("⚙️ 參斸設定")
@@ -259,7 +259,7 @@ if check_password():
         volume_ratio_limit = st.number_input("成交量限制倍斸", min_value=0.5, max_value=50.0, value=10.0, step=0.5, format="%.1f")
 
     # OBV 比值篥選區間
-    st.subheader("ᐅ OBV 比值篥選區間 (突破甶週 OBV / 前13週 OBV 平均值)")
+    st.subheader("📈 OBV 比值篥選區間 (突破甶週 OBV / 前13週 OBV 平均值)")
     col_obv_min, col_obv_max = st.columns(2)
     with col_obv_min:
         obv_ratio_min = st.number_input("OBV 比值最小值", min_value=0.0, max_value=100.0, value=0.0, step=0.1, format="%.1f")
@@ -317,7 +317,7 @@ if check_password():
                         st.success(f"✨ 共有 {len(df_res)} 筆交易週紀錄符合條件：")
 
                         for date_str in unique_dates:
-                            st.markdown(f"### Ὄ5 週 K 對應日期: `{date_str}`")
+                            st.markdown(f"### 📅 週 K 對應日期: `{date_str}`")
                             matching_sub = df_res[df_res["Date"].astype(str) == date_str]
 
                             result_strings = []
