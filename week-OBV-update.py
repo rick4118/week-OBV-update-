@@ -68,7 +68,11 @@ if check_password():
         ema26 = df["Close"].ewm(span=26, adjust=False).mean()
         df["DIF"] = ema12 - ema26
         df["DEA"] = df["DIF"].ewm(span=9, adjust=False).mean()
-        df["MACD_Hist"] = df["DIF" ] - df["DEA"] # 紅綠柱
+        df["MACD_Hist"] = df["DIF"] - df["DEA"] # 紅綠柱
+
+        # 4. 為了條件 3 計算前 13 週的平均成交量
+        # 這裡包含當週，故篩選時要取前一週算起的前 13 週均量（避開突破當週）
+        df["Vol_MA13"] = df["Volume"].rolling(window=13).mean()
 
         return df
 
@@ -78,7 +82,7 @@ if check_password():
         start_dt = pd.Timestamp(start_date)
         end_dt = pd.Timestamp(end_date)
 
-        # 提前下載數據，同時也要確保突破日後續至少有 24 週（約 170 天）可供回測計算
+        # 確保有足夠的歷史資料計算 13週均量、30週OBV高點以及24週回測
         download_start = (start_dt - pd.Timedelta(days=365*1.5)).strftime("%Y-%m-%d")
         download_end = (end_dt + pd.Timedelta(days=7 + 24*7)).strftime("%Y-%m-%d")
 
@@ -119,25 +123,54 @@ if check_password():
                         continue
 
                     # 條件 1: 周K線 5T, 10T, 20T 趨勢皆向上 (當周大於前周)
-                    ma_up = (latest["MA5"] > prev["MA5"]) and (latest["MA10" ] > prev["MA10"]) and (latest["MA20"] > prev["MA20"])
+                    ma_up = (latest["MA5"] > prev["MA5"]) and (latest["MA10"] > prev["MA10"]) and (latest["MA20"] > prev["MA20"])
                     if not ma_up:
                         continue
 
-                    # 條件 2: MACD 紅柱漸增且小於 5 根
-                    hist_series = df_sub["MACD_Hist"]
-                    red_count = 0
-                    for val in reversed(hist_series.values):
-                        if val > 0:
-                            red_count += 1
-                        else:
-                            break
+                    # 條件 2: MACD 篩選 (綠轉紅小於5週，或紅柱由短轉長小於5週)
+                    hist_series = df_sub["MACD_Hist"].values
+                    latest_hist = hist_series[-1]
+                    prev_hist = hist_series[-2]
 
-                    macd_ok = (red_count >= 1) and (red_count < 5) and (latest["MACD_Hist"] > prev["MACD_Hist"])
+                    macd_ok = False
+                    if latest_hist > 0:
+                        # A. 綠轉紅的情況 (計算紅柱連續週數)
+                        red_count = 0
+                        for val in reversed(hist_series):
+                            if val > 0:
+                                red_count += 1
+                            else:
+                                break
+
+                        if (red_count >= 1) and (red_count < 5) and (latest_hist > prev_hist):
+                            macd_ok = True
+
+                        # B. 紅柱由短轉長的情況 (紅柱盤整後縮短又轉長，持續週數小於 5 週)
+                        if not macd_ok and latest_hist > prev_hist:
+                            # 往前尋找紅柱區間內的轉折低點 (Local Minimum)
+                            turn_count = 0
+                            found_local_min = False
+                            for i in range(len(hist_series) - 1, 0, -1):
+                                # 如果碰到綠柱，則停止
+                                if hist_series[i] <= 0:
+                                    break
+                                # 如果前一週大於當前週，代表找到了轉折低點
+                                if hist_series[i-1] >= hist_series[i]:
+                                    found_local_min = True
+                                    break
+                                turn_count += 1
+
+                            # 由短轉長（低點後再轉長）的持續週數（即轉折至今的增長週數）需小於 5 週
+                            if found_local_min and (turn_count >= 1) and (turn_count < 5):
+                                macd_ok = True
+
                     if not macd_ok:
                         continue
 
-                    # 條件 3: 突破當週的成交量不可高於前一週的指定倍數
-                    volume_ratio = latest["Volume"] / prev["Volume"] if prev["Volume" ] != 0 else 999
+                    # 條件 3: 突破當週的成交量不可高於「前 13 週平均成交量」的指定倍數
+                    # 取前一週 (idx_loc-1) 計算出的 13週平均成交量
+                    prev_ma13_vol = df_sub["Vol_MA13"].iloc[-2]
+                    volume_ratio = latest["Volume"] / prev_ma13_vol if prev_ma13_vol > 0 else 999
                     if volume_ratio > volume_ratio_limit:
                         continue
 
@@ -178,7 +211,7 @@ if check_password():
 
     # --- App 主介面 ---
     st.title("📈 周K OBV 綜合決策篩選器")
-    st.write("此為綜合多重指標篩選系統，需完全符合 OBV 突破、均線多頭、MACD 初升段、突破量能限制及收盤價限制。")
+    st.write("此為綜合多重指標篩選系統，需完全符合 OBV 突破、均線多頭、MACD 初升段（或紅柱轉折再轉長）、突破量能限制（對比 13 週均量）及收盤價限制。")
 
     # 參數設定區塊
     st.subheader("⚙️ 參數設定")
@@ -188,7 +221,7 @@ if check_password():
     with col_param2:
         ma_window = st.number_input("OBV 均線週數 (預設 20 週)", min_value=5, max_value=100, value=20, step=1)
     with col_param3:
-        volume_ratio_limit = st.number_input("成交量限制倍數 (預設 10.0 倍)", min_value=0.5, max_value=50.0, value=10.0, step=0.5, format="%.1f")
+        volume_ratio_limit = st.number_input("成交量限制倍數 (對比前13週均量)", min_value=0.5, max_value=50.0, value=10.0, step=0.5, format="%.1f")
 
     # 時間區間選擇
     st.subheader("📅 選擇搜尋時間區間")
