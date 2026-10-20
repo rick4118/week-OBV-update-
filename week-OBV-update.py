@@ -52,7 +52,7 @@ if check_password():
 
         # 1. OBV 計算
         close_diff = df["Close"].diff()
-        volume_direction = np.where(close_diff > 0, df["Volume"], 
+        volume_direction = np.where(close_diff > 0, df["Volume"],
                                     np.where(close_diff < 0, -df["Volume"], 0))
         volume_direction[0] = 0
         df["OBV"] = np.cumsum(volume_direction)
@@ -78,12 +78,12 @@ if check_password():
         low_min = df["Low"].rolling(window=9).min()
         high_max = df["High"].rolling(window=9).max()
         rsv = 100 * ((df["Close"] - low_min) / (high_max - low_min))
-        
+
         k_list = []
         d_list = []
         current_k = 50.0
         current_d = 50.0
-        
+
         for r in rsv:
             if pd.isna(r):
                 k_list.append(np.nan)
@@ -93,7 +93,7 @@ if check_password():
                 current_d = (2/3) * current_d + (1/3) * current_k
                 k_list.append(current_k)
                 d_list.append(current_d)
-                
+
         df["K9"] = k_list
         df["D9"] = d_list
 
