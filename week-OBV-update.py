@@ -73,7 +73,7 @@ if check_password():
         # 4. 為了條件 3 計算前 13 週的 average volume
         df["Vol_MA13"] = df["Volume"].rolling(window=13).mean()
 
-        # 為了計算 OBV 比值，計算前 13 週的平均 OBV
+        # 為了計算 OBV 比值，計算前 13 週的 average OBV
         df["OBV_MA13"] = df["OBV"].rolling(window=13).mean()
 
         # 5. KD 指標計算 (9, 3, 3)
@@ -123,7 +123,7 @@ if check_password():
 
                 df = calculate_indicators(df, obv_ma_window)
 
-                # 尋找落在此時間區間內的週K棒索引
+                # 尋找落落在時間區間內的週K棒索引
                 target_weeks = df[(df.index >= start_dt) & (df.index <= end_dt)]
 
                 for current_date in target_weeks.index:
@@ -206,11 +206,8 @@ if check_password():
                     prev_ma13_obv = df_sub["OBV_MA13"].iloc[-2]
                     obv_ratio = latest["OBV"] / prev_ma13_obv if prev_ma13_obv != 0 else 0.0
 
-                    # 判定突破當週主力買賣邏輯
-                    # 收盤在當周中線以上且收紅K為「買」，否則為「賣」
-                    mid_price = (latest["High"] + latest["Low"]) / 2
-                    is_bullish = latest["Close"] > latest["Open"]
-                    force_type = "買" if (latest["Close"] >= mid_price and is_bullish) else "賣"
+                    # 計算成交量與前13周均量的差額
+                    vol_diff = latest["Volume"] - prev_ma13_vol
 
                     # 通過所有篩選！計算往後推 24 週的獲利狀況
                     buy_price = latest["Close"]
@@ -240,7 +237,7 @@ if check_password():
                         "K9": k_val,
                         "D9": d_val,
                         "OBV_Ratio": f"{obv_ratio:.2f}",
-                        "Force": force_type
+                        "Vol_Diff": f"{vol_diff:,.0f}"
                     })
             except Exception as e:
                 pass
@@ -315,7 +312,7 @@ if check_password():
 
                             result_strings = []
                             for _, row in matching_sub.iterrows():
-                                result_strings.append(f"{row['Ticker']} (主力: {row['Force']}, OBV比值: {row['OBV_Ratio']}, 獲利: {row['Profit']}, {row['Week_Num']}, KD: K={row['K9']} D={row['D9']})")
+                                result_strings.append(f"{row['Ticker']} (量差: {row['Vol_Diff']}, OBV比值: {row['OBV_Ratio']}, 獲利: {row['Profit']}, {row['Week_Num']}, KD: K={row['K9']} D={row['D9']})")
 
                             st.code(" | ".join(result_strings), language="text")
 
