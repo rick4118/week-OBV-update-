@@ -107,7 +107,7 @@ if check_password():
         start_dt = pd.Timestamp(start_date)
         end_dt = pd.Timestamp(end_date)
 
-        # 確保有足夥的歷史資料
+        # 確保有足夠的歷史資料
         download_start = (start_dt - pd.Timedelta(days=365*1.5)).strftime("%Y-%m-%d")
         download_end = (end_dt + pd.Timedelta(days=7 + 24*7)).strftime("%Y-%m-%d")
 
@@ -131,7 +131,7 @@ if check_password():
                     if idx_loc < 31:
                         continue # 需要至少30週歷史資料
 
-                    # 取得甶前與歷史切片
+                    # 取得當前與歷史切片
                     df_sub = df.iloc[:idx_loc+1]
                     latest = df_sub.iloc[-1]
                     prev = df_sub.iloc[-2]
@@ -147,12 +147,12 @@ if check_password():
                     if not is_just_broke_nw:
                         continue
 
-                    # 條件 1: 周K線 5T, 10T, 20T 趨勢皆向上 (甶周大於前周)
+                    # 條件 1: 周K線 5T, 10T, 20T 趨勢皆向上 (當周大於前周)
                     ma_up = (latest["MA5"] > prev["MA5"]) and (latest["MA10"] > prev["MA10"]) and (latest["MA20"] > prev["MA20"])
                     if not ma_up:
                         continue
 
-                    # 條件 2: MACD 篥選
+                    # 條件 2: MACD 篩選
                     hist_series = df_sub["MACD_Hist"].values
                     latest_hist = hist_series[-1]
                     prev_hist = hist_series[-2]
@@ -188,13 +188,13 @@ if check_password():
                     if not macd_ok:
                         continue
 
-                    # 條件 3: 突破甶週的成交量限制
+                    # 條件 3: 突破當週的成交量限制
                     prev_ma13_vol = df_sub["Vol_MA13"].iloc[-2]
                     volume_ratio = latest["Volume"] / prev_ma13_vol if prev_ma13_vol > 0 else 999
                     if volume_ratio > volume_ratio_limit:
                         continue
 
-                    # 條件 4: 甶周收盤價限制
+                    # 條件 4: 當周收盤價限制
                     last_30_weeks = df_sub.iloc[-30:]
                     max_obv_idx = last_30_weeks["OBV"].idxmax()
                     max_obv_week_close = df_sub.loc[max_obv_idx, "Close"]
@@ -202,19 +202,19 @@ if check_password():
                     if latest["Close"] > max_obv_week_close:
                         continue
 
-                    # 計算突破甶周OBV與前13周OBV平均值(不含甶周)的比值
+                    # 計算突破當周OBV與前13周OBV平均值(不含當周)的比值
                     prev_ma13_obv = df_sub["OBV_MA13"].iloc[-2]
                     obv_ratio = latest["OBV"] / prev_ma13_obv if prev_ma13_obv != 0 else 0.0
 
-                    # 額外新增：OBV 比值區間篥選
+                    # 額外新增：OBV 比值區間篩選
                     if not (obv_ratio_min <= obv_ratio <= obv_ratio_max):
                         continue
 
-                    # 通過所有篥選！計算往後推 24 週的獲利狀況
+                    # 通過所有篩選！計算往後推 24 週的獲利狀況
                     buy_price = latest["Close"]
                     future_df = df.iloc[idx_loc+1 : idx_loc+25] # 往後推 24 週
 
-                    # 必須確保有 24 週的斸據，不足一律顯示 NA
+                    # 必須確保有 24 週的數據，不足一律顯示 NA
                     if len(future_df) == 24:
                         max_future_close = future_df["Close"].max()
                         max_idx = future_df["Close"].idxmax()
@@ -226,9 +226,9 @@ if check_password():
                         profit_str = "NA"
                         week_str = "NA"
 
-                    # 取得甶週的 K值與 D值
-                    k_val = f"{latest["K9"]:.2f}" if not pd.isna(latest["K9"]) else "NA"
-                    d_val = f"{latest["D9"]:.2f}" if not pd.isna(latest["D9"]) else "NA"
+                    # 取得當週的 K值與 D值
+                    k_val = f"{latest['K9']:.2f}" if not pd.isna(latest["K9"]) else "NA"
+                    d_val = f"{latest['D9']:.2f}" if not pd.isna(latest["D9"]) else "NA"
 
                     all_matches.append({
                         "Date": current_date.strftime("%Y-%m-%d"),
@@ -245,21 +245,21 @@ if check_password():
         return pd.DataFrame(all_matches)
 
     # --- App 主介面 ---
-    st.title("📈 周K OBV 綵合決策篥選器")
-    st.write("此為綵合多重指標篥選系統，需完全符合 OBV 突破、均線多頭、MACD 初升段只收盤價限制。")
+    st.title("📈 周K OBV 綜合決策篩選器")
+    st.write("此為綜合多重指標篩選系統，需完全符合 OBV 突破、均線多頭、MACD 初升段及收盤價限制。")
 
-    # 參斸設定區塊
-    st.subheader("⚙️ 參斸設定")
+    # 參數設定區塊
+    st.subheader("⚙️ 參數設定")
     col_param1, col_param2, col_param3 = st.columns(3)
     with col_param1:
-        break_window = st.number_input("OBV 新高計算週斸", min_value=5, max_value=52, value=13, step=1)
+        break_window = st.number_input("OBV 新高計算週數", min_value=5, max_value=52, value=13, step=1)
     with col_param2:
-        ma_window = st.number_input("OBV 均線週斸", min_value=5, max_value=100, value=20, step=1)
+        ma_window = st.number_input("OBV 均線週數", min_value=5, max_value=100, value=20, step=1)
     with col_param3:
-        volume_ratio_limit = st.number_input("成交量限制倍斸", min_value=0.5, max_value=50.0, value=10.0, step=0.5, format="%.1f")
+        volume_ratio_limit = st.number_input("成交量限制倍數", min_value=0.5, max_value=50.0, value=10.0, step=0.5, format="%.1f")
 
-    # OBV 比值篥選區間
-    st.subheader("📈 OBV 比值篩選區間 (突破甶週 OBV / 前13週 OBV 平均值)")
+    # OBV 比值篩選區間
+    st.subheader("📈 OBV 比值篩選區間 (突破當週 OBV / 前13週 OBV 平均值)")
     col_obv_min, col_obv_max = st.columns(2)
     with col_obv_min:
         obv_ratio_min = st.number_input("OBV 比值最小值", min_value=0.0, max_value=100.0, value=0.0, step=0.1, format="%.1f")
@@ -328,4 +328,4 @@ if check_password():
 
                         st.info("💡 提示：點擊右上方『📋』按鈕可以快速複製資訊。")
                     else:
-                        st.error("❌ 在此指定時間區間內，無任何個股完全符合所有篥選條件。")
+                        st.error("❌ 在此指定時間區間內，無任何個股完全符合所有篩選條件。")
