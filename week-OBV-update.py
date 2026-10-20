@@ -146,7 +146,7 @@ if check_password():
                         continue
 
                     # 條件 1: 周K線 5T, 10T, 20T 趨勢皆向上 (當周大於前周)
-                    ma_up = (latest["MA5"] > prev["MA5"]) and (latest["MA10"] > prev["MA10"]) and (latest["MA20"] > prev["MA20"])
+                    ma_up = (latest["MA5"] > prev["MA5"]) and (latest["MA10" ] > prev["MA10"]) and (latest["MA20"] > prev["MA20"])
                     if not ma_up:
                         continue
 
@@ -222,8 +222,8 @@ if check_password():
                         week_str = "NA"
 
                     # 取得當週的 K值與 D值
-                    k_val = f"{latest['K9']:.2f}" if not pd.isna(latest['K9']) else "NA"
-                    d_val = f"{latest['D9']:.2f}" if not pd.isna(latest['D9']) else "NA"
+                    k_val = f"{latest["K9"]:.2f}" if not pd.isna(latest["K9"]) else "NA"
+                    d_val = f"{latest["D9"]:.2f}" if not pd.isna(latest["D9"]) else "NA"
 
                     all_matches.append({
                         "Date": current_date.strftime("%Y-%m-%d"),
@@ -275,7 +275,14 @@ if check_password():
         else:
             with st.spinner("⏳ 正在分析歷史數據，請稍候..."):
                 raw_input = tickers_input
-                for char in [',', ';', '\n', '\t', '，', '；']:
+                for char in [
+                    ',',
+                    ';',
+                    '\n',
+                    '\t',
+                    '，',
+                    '；'
+                ]:
                     raw_input = raw_input.replace(char, ' ')
                 cleaned_tickers = [t.strip() for t in raw_input.split(' ') if t.strip()]
 
@@ -307,7 +314,7 @@ if check_password():
                             # 格式化輸出，加上獲利%、第幾週、KD值
                             result_strings = []
                             for _, row in matching_sub.iterrows():
-                                result_strings.append(f"{row[\'Ticker\']} (獲利: {row[\'Profit\']}, {row[\'Week_Num\']}, KD: K={row[\'K9\']} D={row[\'D9\']})")
+                                result_strings.append(f"{row['Ticker']} (獲利: {row['Profit']}, {row['Week_Num']}, KD: K={row['K9']} D={row['D9']})")
 
                             st.code(" | ".join(result_strings), language="text")
 
