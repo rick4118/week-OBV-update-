@@ -70,7 +70,7 @@ if check_password():
         df["DEA"] = df["DIF"].ewm(span=9, adjust=False).mean()
         df["MACD_Hist"] = df["DIF"] - df["DEA"] # 紅綠柱
 
-        # 4. 為了條件 3 計算前 13 週的平均成交量
+        # 4. 為了條件 3 計算前 13 週的 average volume
         df["Vol_MA13"] = df["Volume"].rolling(window=13).mean()
 
         # 為了計算 OBV 比值，計算前 13 週的平均 OBV
@@ -206,6 +206,12 @@ if check_password():
                     prev_ma13_obv = df_sub["OBV_MA13"].iloc[-2]
                     obv_ratio = latest["OBV"] / prev_ma13_obv if prev_ma13_obv != 0 else 0.0
 
+                    # 判定突破當週主力買賣邏輯
+                    # 收盤在當周中線以上且收紅K為「買」，否則為「賣」
+                    mid_price = (latest["High"] + latest["Low"]) / 2
+                    is_bullish = latest["Close"] > latest["Open"]
+                    force_type = "買" if (latest["Close"] >= mid_price and is_bullish) else "賣"
+
                     # 通過所有篩選！計算往後推 24 週的獲利狀況
                     buy_price = latest["Close"]
                     future_df = df.iloc[idx_loc+1 : idx_loc+25] # 往後推 24 週
@@ -233,7 +239,8 @@ if check_password():
                         "Week_Num": week_str,
                         "K9": k_val,
                         "D9": d_val,
-                        "OBV_Ratio": f"{obv_ratio:.2f}"
+                        "OBV_Ratio": f"{obv_ratio:.2f}",
+                        "Force": force_type
                     })
             except Exception as e:
                 pass
@@ -308,7 +315,7 @@ if check_password():
 
                             result_strings = []
                             for _, row in matching_sub.iterrows():
-                                result_strings.append(f"{row['Ticker']} (OBV比值: {row['OBV_Ratio']}, 獲利: {row['Profit']}, {row['Week_Num']}, KD: K={row['K9']} D={row['D9']})")
+                                result_strings.append(f"{row['Ticker']} (主力: {row['Force']}, OBV比值: {row['OBV_Ratio']}, 獲利: {row['Profit']}, {row['Week_Num']}, KD: K={row['K9']} D={row['D9']})")
 
                             st.code(" | ".join(result_strings), language="text")
 
