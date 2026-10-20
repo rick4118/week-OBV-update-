@@ -22,7 +22,7 @@ def check_password():
             st.session_state["password_correct"] = False
 
     if "password_correct" not in st.session_state:
-        st.title("🔒 系統安全驗證")
+        st.title("ὑ2 系統安全驖證")
         st.text_input(
             "請輸入密碼以存取周K OBV 篩選器：",
             type="password",
@@ -31,7 +31,7 @@ def check_password():
         )
         return False
     elif not st.session_state["password_correct"]:
-        st.title("🔒 系統安全驗證")
+        st.title("ὑ2 系統安全驖證")
         st.text_input(
             "請輸入密碼以存取周K OBV 篩選器：",
             type="password",
@@ -52,7 +52,7 @@ if check_password():
 
         # 1. OBV 計算
         close_diff = df["Close"].diff()
-        volume_direction = np.where(close_diff > 0, df["Volume"], 
+        volume_direction = np.where(close_diff > 0, df["Volume"],
                                     np.where(close_diff < 0, -df["Volume"], 0))
         volume_direction[0] = 0
         df["OBV"] = np.cumsum(volume_direction)
@@ -101,7 +101,7 @@ if check_password():
 
         return df
 
-    def scan_weekly_obv_stocks_v2(ticker_list, start_date, end_date, break_window=13, obv_ma_window=20, volume_ratio_limit=10.0):
+    def scan_weekly_obv_stocks_v2(ticker_list, start_date, end_date, break_window=13, obv_ma_window=20, volume_ratio_limit=10.0, obv_ratio_min=0.0, obv_ratio_max=10.0):
         all_matches = []
 
         start_dt = pd.Timestamp(start_date)
@@ -206,6 +206,10 @@ if check_password():
                     prev_ma13_obv = df_sub["OBV_MA13"].iloc[-2]
                     obv_ratio = latest["OBV"] / prev_ma13_obv if prev_ma13_obv != 0 else 0.0
 
+                    # 額外新增：OBV 比值區間篩選
+                    if not (obv_ratio_min <= obv_ratio <= obv_ratio_max):
+                        continue
+
                     # 計算成交量與前13周均量的差額
                     vol_diff = latest["Volume"] - prev_ma13_vol
 
@@ -245,11 +249,11 @@ if check_password():
         return pd.DataFrame(all_matches)
 
     # --- App 主介面 ---
-    st.title("📈 周K OBV 綜合決策篩選器")
-    st.write("此為綜合多重指標篩選系統，需完全符合 OBV 突破、均線多頭、MACD 初升段及收盤價限制。")
+    st.title("Ὄ8 周K OBV 綐合決策籞選器")
+    st.write("此為綐合多重指標籞選系統，需完全符合 OBV 突破、均線多頭、MACD 初升段及收盤價限制。")
 
     # 參數設定區塊
-    st.subheader("⚙️ 參數設定")
+    st.subheader("⚙️ 參攸設定")
     col_param1, col_param2, col_param3 = st.columns(3)
     with col_param1:
         break_window = st.number_input("OBV 新高計算週數", min_value=5, max_value=52, value=13, step=1)
@@ -258,8 +262,16 @@ if check_password():
     with col_param3:
         volume_ratio_limit = st.number_input("成交量限制倍數", min_value=0.5, max_value=50.0, value=10.0, step=0.5, format="%.1f")
 
+    # OBV 比值篩選區間
+    st.subheader("Ὄ8 OBV 比值籞選區間 (突破甶週 OBV / 前13週 OBV 平均值)")
+    col_obv_min, col_obv_max = st.columns(2)
+    with col_obv_min:
+        obv_ratio_min = st.number_input("OBV 比值最小值", min_value=0.0, max_value=100.0, value=0.0, step=0.1, format="%.1f")
+    with col_obv_max:
+        obv_ratio_max = st.number_input("OBV 比值最大值", min_value=0.0, max_value=100.0, value=10.0, step=0.1, format="%.1f")
+
     # 時間區間選擇
-    st.subheader("📅 選擇搜尋時間區間")
+    st.subheader("Ὄ5 選擇搜尋時間區間")
     col_date1, col_date2 = st.columns(2)
     with col_date1:
         start_date = st.date_input("開始日期:", datetime.now() - pd.Timedelta(days=90))
@@ -273,13 +285,13 @@ if check_password():
         height=120
     )
 
-    run_button = st.button("🎯 開始條件篩選", use_container_width=True)
+    run_button = st.button("ἹF 開始條件籞選", use_container_width=True)
 
     if run_button:
         if start_date > end_date:
-            st.error("❌ 錯誤：開始日期不可晚於結束日期！")
+            st.error("❌ 誤：開始日期中不可晚於結束日期！")
         else:
-            with st.spinner("⏳ 正在分析歷史數據，請稍候..."):
+            with st.spinner("⏳ 踩在分析歷史數據，請稍候..."):
                 raw_input = tickers_input
                 for char in [',', ';', '\n', '\t', '，', '；']:
                     raw_input = raw_input.replace(char, ' ')
@@ -295,10 +307,12 @@ if check_password():
                         end_date.strftime('%Y-%m-%d'),
                         break_window=break_window,
                         obv_ma_window=ma_window,
-                        volume_ratio_limit=volume_ratio_limit
+                        volume_ratio_limit=volume_ratio_limit,
+                        obv_ratio_min=obv_ratio_min,
+                        obv_ratio_max=obv_ratio_max
                     )
 
-                    st.subheader("🎉 嚴格篩選結果")
+                    st.subheader("Ἰ9 嚴格籞選結果")
 
                     if not df_res.empty:
                         df_res = df_res.sort_values(by="Date")
@@ -307,7 +321,7 @@ if check_password():
                         st.success(f"✨ 共有 {len(df_res)} 筆交易週紀錄符合條件：")
 
                         for date_str in unique_dates:
-                            st.markdown(f"### 📅 週 K 對應日期: `{date_str}`")
+                            st.markdown(f"### Ὄ5 週 K 對愉日期: `{date_str}`")
                             matching_sub = df_res[df_res["Date"].astype(str) == date_str]
 
                             result_strings = []
@@ -316,6 +330,6 @@ if check_password():
 
                             st.code(" | ".join(result_strings), language="text")
 
-                        st.info("💡 提示：點擊右上方『📋』按鈕可以快速複製資訊。")
+                        st.info("Ὂ1 提示：點擊右上方『Ὅ3』按鈐可以快速複製資訊。")
                     else:
-                        st.error("❌ 在此指定時間區間內，無任何個股完全符合所有篩選條件。")
+                        st.error("❌ 在此指定時間區間入，無任何個股完全符合所有籞選條件。")
