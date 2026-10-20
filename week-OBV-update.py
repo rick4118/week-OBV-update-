@@ -52,7 +52,7 @@ if check_password():
 
         # 1. OBV 計算
         close_diff = df["Close"].diff()
-        volume_direction = np.where(close_diff > 0, df["Volume"],
+        volume_direction = np.where(close_diff > 0, df["Volume"], 
                                     np.where(close_diff < 0, -df["Volume"], 0))
         volume_direction[0] = 0
         df["OBV"] = np.cumsum(volume_direction)
@@ -73,6 +73,29 @@ if check_password():
         # 4. 為了條件 3 計算前 13 週的平均成交量
         # 這裡包含當週，故篩選時要取前一週算起的前 13 週均量（避開突破當週）
         df["Vol_MA13"] = df["Volume"].rolling(window=13).mean()
+
+        # 5. KD 指標計算 (9, 3, 3)
+        low_min = df["Low"].rolling(window=9).min()
+        high_max = df["High"].rolling(window=9).max()
+        rsv = 100 * ((df["Close"] - low_min) / (high_max - low_min))
+        
+        k_list = []
+        d_list = []
+        current_k = 50.0
+        current_d = 50.0
+        
+        for r in rsv:
+            if pd.isna(r):
+                k_list.append(np.nan)
+                d_list.append(np.nan)
+            else:
+                current_k = (2/3) * current_k + (1/3) * r
+                current_d = (2/3) * current_d + (1/3) * current_k
+                k_list.append(current_k)
+                d_list.append(current_d)
+                
+        df["K9"] = k_list
+        df["D9"] = d_list
 
         return df
 
@@ -198,11 +221,17 @@ if check_password():
                         profit_str = "NA"
                         week_str = "NA"
 
+                    # 取得當週的 K值與 D值
+                    k_val = f"{latest['K9']:.2f}" if not pd.isna(latest['K9']) else "NA"
+                    d_val = f"{latest['D9']:.2f}" if not pd.isna(latest['D9']) else "NA"
+
                     all_matches.append({
                         "Date": current_date.strftime("%Y-%m-%d"),
                         "Ticker": ticker,
                         "Profit": profit_str,
-                        "Week_Num": week_str
+                        "Week_Num": week_str,
+                        "K9": k_val,
+                        "D9": d_val
                     })
             except Exception as e:
                 pass
@@ -275,10 +304,10 @@ if check_password():
                             st.markdown(f"### 📅 週 K 對應日期: `{date_str}`")
                             matching_sub = df_res[df_res["Date"] == date_str]
 
-                            # 格式化輸出，加上獲利%與第幾週
+                            # 格式化輸出，加上獲利%、第幾週、KD值
                             result_strings = []
                             for _, row in matching_sub.iterrows():
-                                result_strings.append(f"{row['Ticker']} (獲利: {row['Profit']}, {row['Week_Num']})")
+                                result_strings.append(f"{row[\'Ticker\']} (獲利: {row[\'Profit\']}, {row[\'Week_Num\']}, KD: K={row[\'K9\']} D={row[\'D9\']})")
 
                             st.code(" | ".join(result_strings), language="text")
 
