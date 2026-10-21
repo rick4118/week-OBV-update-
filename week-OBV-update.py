@@ -78,12 +78,12 @@ if check_password():
         all_matches = []
         start_dt = pd.Timestamp(start_date)
         end_dt = pd.Timestamp(end_date)
-        
+
         # 防守限制：如果結束日期大於今天，限制在今天，避免 yfinance 抓取錯誤
         today_ts = pd.Timestamp(datetime.now().date())
         if end_dt > today_ts:
             end_dt = today_ts
-            
+
         download_start = (start_dt - pd.Timedelta(days=365*1.5)).strftime("%Y-%m-%d")
         download_end = (end_dt + pd.Timedelta(days=7 + 24*7)).strftime("%Y-%m-%d")
 
@@ -95,7 +95,7 @@ if check_password():
                 if isinstance(df.columns, pd.MultiIndex):
                     df.columns = df.columns.get_level_values(0)
                 df = df.dropna(subset=["Close"])
-                
+
                 # 調優：若為早期歷史回測，下修最少資料限制至 35 週（防止被 continue 誤殺）
                 if len(df) < 35:
                     continue
@@ -189,9 +189,9 @@ if check_password():
                         "Ticker": ticker,
                         "Profit": profit_str,
                         "Week_Num": week_str,
-                        "K9": f"{latest['K9']:.2f}",
-                        "D9": f"{latest['D9']:.2f}",
-                        "DIF": f"{latest['DIF']:.2f}",
+                        "K9": f"{latest["K9"]:.2f}",
+                        "D9": f"{latest["D9"]:.2f}",
+                        "DIF": f"{latest["DIF"]:.2f}",
                         "OBV_Ratio": f"{obv_ratio:.2f}"
                     })
             except:
@@ -276,4 +276,14 @@ if check_password():
                 if not df_res.empty:
                     df_res = df_res.sort_values(by="Date")
                     unique_dates = df_res["Date"].unique()
-                    st.success(f
+                    st.success(f"✨ 共有 {len(df_res)} 筆交易週紀錄符合黃金參數起漲點！")
+                    
+                    for date_str in unique_dates:
+                        st.markdown(f"### 📅 起漲週 K 日期: `{date_str}`")
+                        matching_sub = df_res[df_res["Date"].astype(str) == date_str]
+                        result_strings = []
+                        for _, row in matching_sub.iterrows():
+                            result_strings.append(f"{row['Ticker']} (OBV比值: {row['OBV_Ratio']}, 24週最大獲利: {row['Profit']} ({row['Week_Num']}), KD: K={row['K9']} D={row['D9']}, DIF: {row['DIF']})")
+                        st.code(" | ".join(result_strings), language="text")
+                else:
+                    st.error("❌ 篩選失敗：在此設定條件下，無任何個股完全符合黃金起漲參數。")
