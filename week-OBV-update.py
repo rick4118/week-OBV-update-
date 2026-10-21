@@ -78,6 +78,12 @@ if check_password():
         all_matches = []
         start_dt = pd.Timestamp(start_date)
         end_dt = pd.Timestamp(end_date)
+        
+        # 防守限制：如果結束日期大於今天，限制在今天，避免 yfinance 抓取錯誤
+        today_ts = pd.Timestamp(datetime.now().date())
+        if end_dt > today_ts:
+            end_dt = today_ts
+            
         download_start = (start_dt - pd.Timedelta(days=365*1.5)).strftime("%Y-%m-%d")
         download_end = (end_dt + pd.Timedelta(days=7 + 24*7)).strftime("%Y-%m-%d")
 
@@ -89,7 +95,9 @@ if check_password():
                 if isinstance(df.columns, pd.MultiIndex):
                     df.columns = df.columns.get_level_values(0)
                 df = df.dropna(subset=["Close"])
-                if len(df) < 50:
+                
+                # 調優：若為早期歷史回測，下修最少資料限制至 35 週（防止被 continue 誤殺）
+                if len(df) < 35:
                     continue
 
                 df = calculate_indicators(df, 20)
@@ -97,7 +105,7 @@ if check_password():
 
                 for current_date in target_weeks.index:
                     idx_loc = df.index.get_loc(current_date)
-                    if idx_loc < 31:
+                    if idx_loc < 15:  # 放寬前置週數，容納更多歷史起漲訊號
                         continue
 
                     df_sub = df.iloc[:idx_loc+1]
@@ -136,7 +144,7 @@ if check_password():
                         continue
 
                     # 條件 4: 收盤價限制
-                    last_30_weeks = df_sub.iloc[-30:]
+                    last_30_weeks = df_sub.iloc[-min(30, len(df_sub)):]
                     max_obv_idx = last_30_weeks["OBV"].idxmax()
                     max_obv_week_close = df_sub.loc[max_obv_idx, "Close"]
                     if latest["Close"] > max_obv_week_close:
@@ -241,9 +249,9 @@ if check_password():
     # 時間範圍
     col_d1, col_d2 = st.columns(2)
     with col_d1:
-        start_date = st.date_input("⏰ 開始日期", datetime.now() - timedelta(days=365*2))
+        start_date = st.date_input("⏰ 開始日期", datetime(2016, 7, 1))
     with col_d2:
-        end_date = st.date_input("⏰ 結束日期", datetime.now())
+        end_date = st.date_input("⏰ 結束日期", datetime(2026, 10, 20))
 
     run_btn = st.button("🎯 開始黃金參數篩選", use_container_width=True)
 
@@ -268,15 +276,4 @@ if check_password():
                 if not df_res.empty:
                     df_res = df_res.sort_values(by="Date")
                     unique_dates = df_res["Date"].unique()
-                    st.success(f"✨ 共有 {len(df_res)} 筆符合黃金防禦參數起漲點的歷史週 K 紀錄：")
-
-                    for date_str in unique_dates:
-                        st.markdown(f"### 📅 起漲週 K 日期: `{date_str}`")
-                        matching_sub = df_res[df_res["Date"].astype(str) == date_str]
-                        result_strings = []
-                        for _, row in matching_sub.iterrows():
-                            result_strings.append(f"{row['Ticker']} (OBV比值: {row['OBV_Ratio']}, 24週最大獲利: {row['Profit']} ({row['Week_Num']}), KD: K={row['K9']} D={row['D9']}, DIF: {row['DIF']})")
-                        st.code(" | ".join(result_strings), language="text")
-                    st.info("💡 提示：本系統採用的參數具有高防守性，若個股無紀錄，代表該個股並非從安全起漲區間發動。")
-                else:
-                    st.error("❌ 篩選失敗：在此設定條件下，無任何個股完全符合黃金起漲參數。")
+                    st.success(f
