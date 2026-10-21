@@ -2,14 +2,6 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from datetime import datetime
-
-# 寫入 streamlit 檔案：黃金參數版專用
-with open('app_golden.py', 'w', encoding='utf-8') as f:
-    f.write('''import streamlit as st
-import yfinance as yf
-import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta
 
 # 網頁排版設定
@@ -57,7 +49,7 @@ if check_password():
         ema26 = df["Close"].ewm(span=26, adjust=False).mean()
         df["DIF"] = ema12 - ema26
         df["DEA"] = df["DIF"].ewm(span=9, adjust=False).mean()
-        df["MACD_Hist"] = df["DIF" ] - df["DEA"]
+        df["MACD_Hist"] = df["DIF"] - df["DEA"]
 
         df["Vol_MA13"] = df["Volume"].rolling(window=13).mean()
         df["OBV_MA13"] = df["OBV"].rolling(window=13).mean()
@@ -121,7 +113,7 @@ if check_password():
                         continue
 
                     # 條件 1: 均線多頭
-                    ma_up = (latest["MA5"] > prev["MA5"]) and (latest["MA10" ] > prev["MA10"]) and (latest["MA20"] > prev["MA20"])
+                    ma_up = (latest["MA5"] > prev["MA5"]) and (latest["MA10"] > prev["MA10"]) and (latest["MA20"] > prev["MA20"])
                     if not ma_up:
                         continue
 
@@ -288,4 +280,3 @@ if check_password():
                     st.info("💡 提示：本系統採用的參數具有高防守性，若個股無紀錄，代表該個股並非從安全起漲區間發動。")
                 else:
                     st.error("❌ 篩選失敗：在此設定條件下，無任何個股完全符合黃金起漲參數。")
-''')
