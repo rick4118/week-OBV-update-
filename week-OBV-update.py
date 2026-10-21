@@ -57,7 +57,7 @@ if check_password():
         ema26 = df["Close"].ewm(span=26, adjust=False).mean()
         df["DIF"] = ema12 - ema26
         df["DEA"] = df["DIF"].ewm(span=9, adjust=False).mean()
-        df["MACD_Hist"] = df["DIF"] - df["DEA"]
+        df["MACD_Hist"] = df["DIF" ] - df["DEA"]
 
         df["Vol_MA13"] = df["Volume"].rolling(window=13).mean()
         df["OBV_MA13"] = df["OBV"].rolling(window=13).mean()
@@ -122,7 +122,7 @@ if check_password():
 
                     # 條件 1: 均線多頭
                     ma_up = (latest["MA5"] > prev["MA5"]) and (latest["MA10" ] > prev["MA10"]) and (latest["MA20"] > prev["MA20"])
-                    if not ma_up: 
+                    if not ma_up:
                         continue
 
                     # 條件 2: MACD 柱狀體翻紅或轉強
@@ -204,13 +204,13 @@ if check_password():
 
     # 側邊欄設定
     st.sidebar.header("⚙️ 黃金參數防禦設定")
-    
+
     # 完美參數預設值
     min_k = st.sidebar.slider("週 K9 容許下限 (起漲動能)", 50.0, 80.0, 63.0, 1.0)
     max_k = st.sidebar.slider("週 K9 容許上限 (追高防守)", 65.0, 90.0, 75.0, 1.0)
     min_obv_ratio = st.sidebar.slider("OBV 突破強度下限 (OBV_Ratio)", 1.0, 2.0, 1.05, 0.01)
     min_dif = st.sidebar.slider("週 MACD DIF 強度下限 (趨勢過濾)", 0.0, 1.0, 0.05, 0.01)
-    
+
     st.sidebar.markdown("---之外的基本限制：")
     break_window = st.sidebar.number_input("OBV 新高計算週數", 5, 52, 13)
     vol_limit = st.sidebar.number_input("成交量限制倍數", 1.0, 30.0, 10.0, 0.5)
@@ -228,14 +228,14 @@ if check_password():
         "3481.TW": "群創 (高波動面板)",
         "2206.TW": "三陽工業 (車用精品)"
     }
-    
+
     st.subheader("📋 績優高波動白名單選擇 (預設全選)")
     selected_labels = st.multiselect(
         "請勾選欲納入篩選的白名單個股：",
         options=list(white_list_dict.values()),
         default=list(white_list_dict.values())
     )
-    
+
     # 反查 Tickers
     selected_tickers = [k for k, v in white_list_dict.items() if v in selected_labels]
 
@@ -271,9 +271,21 @@ if check_password():
                     max_k_value=max_k,
                     min_dif_limit=min_dif
                 )
-                
+
                 st.subheader("🎉 篩選報告與回測結果")
                 if not df_res.empty:
                     df_res = df_res.sort_values(by="Date")
                     unique_dates = df_res["Date"].unique()
-                    st.success(f
+                    st.success(f"✨ 共有 {len(df_res)} 筆符合黃金防禦參數起漲點的歷史週 K 紀錄：")
+
+                    for date_str in unique_dates:
+                        st.markdown(f"### 📅 起漲週 K 日期: `{date_str}`")
+                        matching_sub = df_res[df_res["Date"].astype(str) == date_str]
+                        result_strings = []
+                        for _, row in matching_sub.iterrows():
+                            result_strings.append(f"{row['Ticker']} (OBV比值: {row['OBV_Ratio']}, 24週最大獲利: {row['Profit']} ({row['Week_Num']}), KD: K={row['K9']} D={row['D9']}, DIF: {row['DIF']})")
+                        st.code(" | ".join(result_strings), language="text")
+                    st.info("💡 提示：本系統採用的參數具有高防守性，若個股無紀錄，代表該個股並非從安全起漲區間發動。")
+                else:
+                    st.error("❌ 篩選失敗：在此設定條件下，無任何個股完全符合黃金起漲參數。")
+''')
