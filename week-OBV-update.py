@@ -125,13 +125,19 @@ if check_password():
                     if not ma_up:
                         continue
 
-                    # 條件 2: MACD 柱狀體翻紅或轉強
+                    # 條件 2: MACD 柱狀體翻紅或轉強 - 修正為真正的連續向後計數邏輯
                     hist_series = df_sub["MACD_Hist"].values
                     latest_hist = hist_series[-1]
                     prev_hist = hist_series[-2]
                     macd_ok = False
+                    red_count = 0
                     if latest_hist > 0:
-                        red_count = sum(1 for val in reversed(hist_series) if val > 0)
+                        # 往回數連續正值的個數
+                        for val in reversed(hist_series):
+                            if val > 0:
+                                red_count += 1
+                            else:
+                                break
                         if (red_count >= 1) and (red_count < 5) and (latest_hist > prev_hist):
                             macd_ok = True
                     if not macd_ok:
@@ -189,9 +195,9 @@ if check_password():
                         "Ticker": ticker,
                         "Profit": profit_str,
                         "Week_Num": week_str,
-                        "K9": f"{latest["K9"]:.2f}",
-                        "D9": f"{latest["D9"]:.2f}",
-                        "DIF": f"{latest["DIF"]:.2f}",
+                        "K9": f"{latest['K9']:.2f}",
+                        "D9": f"{latest['D9']:.2f}",
+                        "DIF": f"{latest['DIF']:.2f}",
                         "OBV_Ratio": f"{obv_ratio:.2f}"
                     })
             except:
@@ -277,7 +283,7 @@ if check_password():
                     df_res = df_res.sort_values(by="Date")
                     unique_dates = df_res["Date"].unique()
                     st.success(f"✨ 共有 {len(df_res)} 筆交易週紀錄符合黃金參數起漲點！")
-                    
+
                     for date_str in unique_dates:
                         st.markdown(f"### 📅 起漲週 K 日期: `{date_str}`")
                         matching_sub = df_res[df_res["Date"].astype(str) == date_str]
